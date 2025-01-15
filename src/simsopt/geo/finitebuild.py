@@ -50,13 +50,30 @@ class CurveFilament(FramedCurve):
         td, nd, bd = self.framedcurve.rotated_frame_dash()
         gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
 
+    def gammadashdash_impl(self, gammadashdash):
+        """
+        Implementation of gammadashdash once I know the mathematical formula
+        """
+        tdd, ndd, bdd = self.framedcurve.rotated_frame_dashdash()
+        gammadashdash[:] = self.curve.gammadashdash() + self.dn * ndd + self.db * bdd
+
     def dgamma_by_dcoeff_vjp(self, v):
         return self.curve.dgamma_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
 
     def dgammadash_by_dcoeff_vjp(self, v):
+        print(f"v1: {v}")
         return self.curve.dgammadash_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        """
+        Implementation of gammadashdash_by_dcoeff_vjp once I have the jvp functions
+        defined for rotated frame dash (or is it another object)
+        """
+        print(f"v2: {v}")
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v) \
+           +  self.framedcurve.rotated_frame_dashdash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
                               rotation_order=None, rotation_scaling=None, frame='centroid'):
