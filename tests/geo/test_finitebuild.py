@@ -89,10 +89,16 @@ class MultifilamentTesting(unittest.TestCase):
         h = np.random.standard_normal(size=dofs.shape)
         df = np.sum(c.dgamma_by_dcoeff_vjp(v)(c)*h)
         dg = np.sum(c.dgammadash_by_dcoeff_vjp(v)(c)*h)
+        # df = np.sum(curves[0].dgamma_by_dcoeff_vjp(v)(c)*h)
+        # dg = np.sum(curves[0].dgamma_by_dcoeff_vjp(v)(c)*h)
+        if centroid and order == 1: # currently fails
+            dh = np.sum(c.dgammadashdash_by_dcoeff_vjp(v)(c)*h)
 
         errf_old = 1e10
         errg_old = 1e10
-
+        errh_old = 1e10
+        print("==============", flush=True)
+        print("gamma test", flush=True)
         for i in range(12, 17):
             eps = 0.5**i
             c.x = dofs + eps*h
@@ -100,22 +106,40 @@ class MultifilamentTesting(unittest.TestCase):
             c.x = dofs - eps*h
             f2 = np.sum(c.gamma()*v)
             errf = (f1-f2)/(2*eps) - df
-            print(errf)
+            print(errf, flush=True)
             assert errf < 0.3 * errf_old
             errf_old = errf
 
-        print("==============")
+        print("==============", flush=True)
+        print("gammadash test", flush=True)
         for i in range(10, 17):
             eps = 0.5**i
+            print(f"eps: {eps}")
             c.x = dofs + eps*h
             g1 = np.sum(c.gammadash()*v)
             c.x = dofs - eps*h
             g2 = np.sum(c.gammadash()*v)
             errg = (g1-g2)/(2*eps) - dg
-            # errg = (g1-g0)/(eps) - dg
-            print(errg)
+            print(errg, flush=True)
             assert errg < 0.3 * errg_old
             errg_old = errg
+
+        if centroid and order == 1: # currently fails
+            print("==============", flush=True)
+            print("gammadashdash test", flush=True)
+            for i in range(10, 17):
+                eps = 0.5**i
+                print(f"eps: {eps}")
+                c.x = dofs + eps*h
+                h1 = np.sum(c.gammadashdash()*v)
+                c.x = dofs - eps*h
+                h2 = np.sum(c.gammadashdash()*v)
+                errh = (h1-h2)/(2*eps) - dh
+                print(errh, flush=True)
+                print(errh < 0.3 * errh_old, flush=True)
+                # Checks that the error has reduced by 0.3 times at least.
+                assert errh < 0.3 * errh_old
+                errh_old = errh
 
     def test_filamentpack(self):
         curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=80)
