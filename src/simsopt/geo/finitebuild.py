@@ -34,8 +34,13 @@ class CurveFilament(FramedCurve):
         self.dn = dn
         self.db = db
         self.rotation = framedcurve.rotation 
+        # self.rotation = FilamentRotation(framedcurve.rotation, )
         self.framedcurve = framedcurve 
+        # deps = [self.framedcurve, self.rotation]
         FramedCurve.__init__(self, self.curve, self.rotation)
+
+    # Define rotated frame with the same call signature and return
+    # rotated_frame of the center curve
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
@@ -62,7 +67,6 @@ class CurveFilament(FramedCurve):
            +  self.framedcurve.rotated_frame_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
 
     def dgammadash_by_dcoeff_vjp(self, v):
-        print(f"v1: {v}")
         return self.curve.dgammadash_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
 
@@ -71,9 +75,38 @@ class CurveFilament(FramedCurve):
         Implementation of gammadashdash_by_dcoeff_vjp once I have the jvp functions
         defined for rotated frame dash (or is it another object)
         """
-        print(f"v2: {v}")
         return self.curve.dgammadashdash_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dashdash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
+
+
+class FilamentRotation(FrameRotation):
+    def __init__(self, curve_filament):
+        """
+        Defines a rotation angle needed to align finite build curve filaments
+        with the rotation of the center-line curve. 
+        This is necessary if one wants to strain optimize a finite build coil.
+        Creating a FramedCurve from a CurveFilament will rely on the
+        rotated frame of the centerline coil that the CurveFilament was defined
+        by. We want the same frame, but the rotation angle for a CurveFilament
+        is needed to compute that frame is different. This rotation computes
+        the rotation considering this effect.
+
+        alpha_f = alpha_0 + cos^-1(n_0^hat \cdot n_f^hat)
+        """        
+        self.curve_filament = curve_filament
+        self.center_curve = self.curve_filament.framedcurve
+        self.center_rotation = self.curve_filament.rotation
+
+    def alpha_f():
+        """
+        I need a function that returns t, n, and b but without rotating. 
+        """
+        _, n_0, _ = self.center_curve.unrotated_frame()
+        _, n_f, _ = self.curve_filament.unrotated_frame()
+        alpha_0 = self.center_rotation.alpha()
+
+        alpha_f = alpha_0 + jnp.arccos(jnp.dot(n_0, n_f))
+
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
                               rotation_order=None, rotation_scaling=None, frame='centroid'):
