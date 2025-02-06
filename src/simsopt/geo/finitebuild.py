@@ -1,6 +1,8 @@
 import numpy as np
+import jax.numpy as jnp
 
-from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
+from .jit import jit
+from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet, inner
 
 """
 The functions and classes in this model are used to deal with multifilament
@@ -39,17 +41,71 @@ class CurveFilament(FramedCurve):
         # deps = [self.framedcurve, self.rotation]
         FramedCurve.__init__(self, self.curve, self.rotation)
 
-    # Define rotated frame with the same call signature and return
-    # rotated_frame of the center curve
+        # self.torsion = jit(
+        #     lambda gamma_c, gamma_f, gammadash_c, gammadash_f, gammadashdash_f, alpha_c, alphadash_c: torsion_pure_centroid(
+        #         gamma_c, gamma_f, gammadash_c, gammadash_f, gammadashdash_f, alpha_c, alphadash_c
+        #     ) 
+        # )
+        self.torsion = jit(
+            lambda b, ndash, gammadash: torsion_pure(
+                b, ndash, gammadash
+            )
+        )
+
+        self.binorm = jit(
+            lambda b, tdash, gammadash: binormal_curvature_pure(
+                b, tdash, gammadash
+            )
+        )
+
+    def frame_torsion(self):
+        """
+        Returns the frame torsion along the CurveFilament
+        """
+        print("CurveFilament Torsion", flush=True)
+        _, _, b = self.framedcurve.rotated_frame()
+        _, ndash, _ = self.framedcurve.rotated_frame_dash()
+        return self.torsion(b, ndash, self.gammadash())
+
+    def dframe_torsion_by_doceff_vjp(self, v)
+        """
+        VJP function for derivatives of the frame torsion with respect to the
+        dofs.
+        """
+        gamma_c = self.curve.gamma()
+        d1gamma_c = self.curve.gammadash()
+        d2gamma_c = self.curve.gammadashdash()
+        alpha = self.rotation.alpha(self.curve.quadpoints)
+        alphadash = self.rotation.alphadash(self.curve.quadpoints)
+
+
+
+
+    def frame_binormal_curvature(self):
+        """
+        Returns the frame binormal curvature along the CurveFilament
+        """
+        print("CurveFilament Binormal Curvature", flush=True)
+        _, _, b = self.framedcurve.rotated_frame()
+        tdash, _, _ = self.framedcurve.rotated_frame_dash()
+        return self.binorm(b, tdash, self.gammadash())
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
+
+    def gamma(self):
+        t, n, b = self.framedcurve.rotated_frame()
+        return self.curve.gamma() + self.dn * n + self.db * b
 
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
         assert np.linalg.norm(quadpoints - self.curve.quadpoints) < 1e-15
         t, n, b = self.framedcurve.rotated_frame()
         gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
+
+    def gammadash(self):
+        td, nd, bd = self.framedcurve.rotated_frame_dash()
+        return self.curve.gammadash() + self.dn * nd + self.db * bd
 
     def gammadash_impl(self, gammadash):
         td, nd, bd = self.framedcurve.rotated_frame_dash()
@@ -78,6 +134,29 @@ class CurveFilament(FramedCurve):
         return self.curve.dgammadashdash_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dashdash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
 
+# def torsion_pure_centroid(gamma_c, gamma_f, gammadash_c, gammadash_f,
+#                           gammadashdash_f, alpha_c, alphadash_c):
+#     _, _, b = rotated_centroid_frame(gamma, gammadash, alpha)
+#     _, ndash, _ = rotated_centroid_frame_dash(
+#         gamma, gammadash, gammadashdash, alpha, alphadash)
+
+#     ndash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+#     return inner(ndash, b)
+
+def torsion_pure(b, ndash, gammadash):
+    """
+    b and ndash come from centerline curve, gammadash comes from offset curve.
+    """
+    ndash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+    return inner(ndash, b)
+
+def binormal_curvature_pure(b, tdash, gammadash):
+    """
+    b and tdash come from centerline curve, gammadash comes from offset curve.
+    """
+    tdash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+    return inner(tdash, b)
+
 
 class FilamentRotation(FrameRotation):
     def __init__(self, curve_filament):
@@ -96,16 +175,37 @@ class FilamentRotation(FrameRotation):
         self.curve_filament = curve_filament
         self.center_curve = self.curve_filament.framedcurve
         self.center_rotation = self.curve_filament.rotation
-
-    def alpha_f():
+        super().__init__(
+            quadpoints=self.curve_filament.quadpoints,
+            order=self.center_rotation.order,
+            scale=self.center_rotation.scale
+        )
+    
+    def alpha(self, quadpoints):
         """
-        I need a function that returns t, n, and b but without rotating. 
+        Issues:
+        - If generated without dn or db, causes nan errors with floating point precision on arccos
+        - Build in dependence on quadpoints for easy derivatives 
         """
-        _, n_0, _ = self.center_curve.unrotated_frame()
-        _, n_f, _ = self.curve_filament.unrotated_frame()
-        alpha_0 = self.center_rotation.alpha()
-
-        alpha_f = alpha_0 + jnp.arccos(jnp.dot(n_0, n_f))
+        # Get unrotated frame of centerline coil
+        _, self.n_0, self.b_0 = self.center_curve.unrotated_frame()
+        # Get unrotated frame of CurveFilament by creating a FramedCurveCentroid
+        # to have access to unrotated_frame function
+        fc = FramedCurveCentroid(self.curve_filament) # this should be probably for both frenet/centroid
+        _, self.n_f, self.b_f = fc.unrotated_frame()
+        # get the alpha based on the centerlines quadpoints
+        self.alpha_0 = self.center_rotation.alpha(quadpoints)
+        #### DEBUGGING
+        self.to_rotate_by = jnp.arccos(
+            # performs row-wise dot products
+            jnp.einsum('ik,ik->i', self.n_0, self.n_f) 
+        )
+        #####
+        self.alpha_f = self.alpha_0 + jnp.arccos(
+            # performs row-wise dot products
+            jnp.einsum('ik,ik->i', self.n_0, self.n_f) 
+        )
+        return self.alpha_f
 
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
