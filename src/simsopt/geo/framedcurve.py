@@ -6,6 +6,8 @@ from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative
 from .curve import Curve
 from .jit import jit
+# from .finitebuild import CurveFilament
+# import finitebuild
 
 __all__ = ['FramedCurve', 'FramedCurveFrenet', 'FramedCurveCentroid',
            'FrameRotation', 'ZeroRotation', 'FramedCurve']
@@ -20,6 +22,8 @@ class FramedCurve(sopp.Curve, Curve):
         either centroid or frenet. A rotation angle defines the rotation 
         with respect to this reference frame. 
         """
+        # import simsopt.geo.finitebuild
+        from .finitebuild import CurveFilament
         self.curve = curve 
         sopp.Curve.__init__(self, curve.quadpoints)
         deps = [curve]
@@ -37,6 +41,15 @@ class FramedCurve(sopp.Curve, Curve):
             lambda g: self.frame_twist_jax(gammadash, t, g, ndash), n)[1](v)[0])
         self.frame_twistgrad_vjp2 = jit(lambda gammadash, t, n, ndash, v: vjp(
             lambda g: self.frame_twist_jax(gammadash, t, n, g), ndash)[1](v)[0])
+
+    def gamma(self):
+        return self.curve.gamma()
+    
+    def gammadash(self):
+        return self.curve.gammadash()
+
+    def dgammadash_by_dcoeff_vjp(self, v):
+        return self.curve.dgammadash_by_dcoeff_vjp(v)
 
     def frame_twist(self):
         """
@@ -355,6 +368,7 @@ class FramedCurveCentroid(FramedCurve):
     """
 
     def __init__(self, curve, rotation=None):
+
         FramedCurve.__init__(self, curve, rotation)
 
         self.torsion = jit(lambda gamma, gammadash, gammadashdash, alpha, alphadash: torsion_pure_centroid(
@@ -449,6 +463,7 @@ class FramedCurveCentroid(FramedCurve):
         return self.binorm(gamma, d1gamma, d2gamma, alpha, alphadash)
 
     def unrotated_frame(self):
+        # gamma = self.curve.gamma_pure()
         return centroid_frame(self.curve.gamma(), self.curve.gammadash())
 
     def rotated_frame(self):
@@ -456,6 +471,14 @@ class FramedCurveCentroid(FramedCurve):
         Returns the frame :math:`(\hat{\textbf{t}}, \hat{\textbf{n}}, \hat{\textbf{b}})`, which is rotated 
         with respect to the reference centroid frame by the rotation. 
         """
+        # from .finitebuild import CurveFilament
+
+        # if type(self.curve) == CurveFilament:
+        #     curve = self.curve.curve
+        # else:
+        #     curve = self.curve
+        # return rotated_centroid_frame(curve.gamma(), curve.gammadash(), 
+        #                               self.rotation.alpha(curve.quadpoints))
         return rotated_centroid_frame(self.curve.gamma(), self.curve.gammadash(), 
                                       self.rotation.alpha(self.curve.quadpoints))
 
@@ -465,6 +488,16 @@ class FramedCurveCentroid(FramedCurve):
         :math:`(\hat{\textbf{t}}'(\phi), \hat{\textbf{n}}'(\phi), \hat{\textbf{b}})'(\phi)`.
         The frame is obtained by rotating with respect to the reference centroid frame by the rotation. 
         """
+        # from .finitebuild import CurveFilament
+
+        # if type(self.curve) == CurveFilament:
+        #     curve = self.curve.curve
+        # else:
+        #     curve = self.curve
+        # return rotated_centroid_frame_dash(
+        #     curve.gamma(), curve.gammadash(), curve.gammadashdash(),
+        #     self.rotation.alpha(curve.quadpoints), self.rotation.alphadash(curve.quadpoints)
+        # )
         return rotated_centroid_frame_dash(
             self.curve.gamma(), self.curve.gammadash(), self.curve.gammadashdash(),
             self.rotation.alpha(self.curve.quadpoints), self.rotation.alphadash(self.curve.quadpoints)
@@ -685,7 +718,7 @@ class ZeroRotation(Optimizable):
         return Derivative({})
 
 @jit 
-def centroid_frame(gammma, gammadash):
+def centroid_frame(gamma, gammadash):
     t = gammadash
     t *= 1./jnp.linalg.norm(gammadash, axis=1)[:, None]
     R = jnp.mean(gamma, axis=0)  # centroid
