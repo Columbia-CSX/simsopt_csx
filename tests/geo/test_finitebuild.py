@@ -89,9 +89,7 @@ class MultifilamentTesting(unittest.TestCase):
         h = np.random.standard_normal(size=dofs.shape)
         df = np.sum(c.dgamma_by_dcoeff_vjp(v)(c)*h)
         dg = np.sum(c.dgammadash_by_dcoeff_vjp(v)(c)*h)
-        # df = np.sum(curves[0].dgamma_by_dcoeff_vjp(v)(c)*h)
-        # dg = np.sum(curves[0].dgamma_by_dcoeff_vjp(v)(c)*h)
-        if centroid and order == 1: # currently fails
+        if centroid and order == 1: 
             dh = np.sum(c.dgammadashdash_by_dcoeff_vjp(v)(c)*h)
 
         errf_old = 1e10
@@ -106,7 +104,7 @@ class MultifilamentTesting(unittest.TestCase):
             c.x = dofs - eps*h
             f2 = np.sum(c.gamma()*v)
             errf = (f1-f2)/(2*eps) - df
-            print(errf, flush=True)
+            # print("errf: ", errf, " errf_old: ", errf_old, flush=True)
             assert errf < 0.3 * errf_old
             errf_old = errf
 
@@ -114,13 +112,12 @@ class MultifilamentTesting(unittest.TestCase):
         print("gammadash test", flush=True)
         for i in range(10, 17):
             eps = 0.5**i
-            print(f"eps: {eps}")
             c.x = dofs + eps*h
             g1 = np.sum(c.gammadash()*v)
             c.x = dofs - eps*h
             g2 = np.sum(c.gammadash()*v)
             errg = (g1-g2)/(2*eps) - dg
-            print(errg, flush=True)
+            # print("errg: ", errg, " errg_old: ", errg_old, flush=True)
             assert errg < 0.3 * errg_old
             errg_old = errg
 
@@ -129,16 +126,16 @@ class MultifilamentTesting(unittest.TestCase):
             print("gammadashdash test", flush=True)
             for i in range(10, 17):
                 eps = 0.5**i
-                print(f"eps: {eps}")
                 c.x = dofs + eps*h
                 h1 = np.sum(c.gammadashdash()*v)
                 c.x = dofs - eps*h
                 h2 = np.sum(c.gammadashdash()*v)
                 errh = (h1-h2)/(2*eps) - dh
-                print(errh, flush=True)
-                print(errh < 0.3 * errh_old, flush=True)
+                # print("errh: ", errh, " errh_old: ", errh_old, flush=True)
+                # print("errh/errh_old: ", errh/errh_old, flush=True)
+                # print(np.abs(errh) < 0.3 * np.abs(errh_old), flush=True)
                 # Checks that the error has reduced by 0.3 times at least.
-                assert errh < 0.3 * errh_old
+                assert np.abs(errh) < 0.3 * np.abs(errh_old)
                 errh_old = errh
 
     def test_filamentpack(self):
