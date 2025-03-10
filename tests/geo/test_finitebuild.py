@@ -54,6 +54,48 @@ class MultifilamentTesting(unittest.TestCase):
         print(gd[idx])
         assert np.all(np.abs(est - gd[idx]) < 1e-10)
 
+    def test_multifilament_gammadashdash(self):
+        for centroid in [True]:
+            for order in [1]:# [None, 1]:
+                with self.subTest(order=order):
+                    self.subtest_multifilament_gammadashdash(order, centroid)
+
+    def subtest_multifilament_gammadashdash(self, order, centroid):
+        assert order in [1]
+        curves, currents, ma = get_ncsx_data(Nt_coils=6, ppp=120)
+        c = curves[0]
+
+        if order == 1:
+            rotation = FrameRotation(c.quadpoints, order)
+            rotation.x = np.array([0, 0.1, 0.3])
+            rotationShared = FrameRotation(curves[0].quadpoints, order, dofs=rotation.dofs)
+            assert np.allclose(rotation.x, rotationShared.x)
+            assert np.allclose(rotation.alpha(c.quadpoints), rotationShared.alpha(c.quadpoints))
+        else:
+            rotation = ZeroRotation(c.quadpoints)
+
+        if centroid:
+            framedcurve = FramedCurveCentroid(c, rotation)
+        # else:
+        #     framedcurve = FramedCurveFrenet(c, rotation)
+
+        c = CurveFilament(framedcurve, 0.01, 0.01)
+        g = c.gamma()
+        gd = c.gammadash()
+        gdd = c.gammadashdash()
+        idx = 16
+
+        dphi = c.quadpoints[1]
+        weights = [-1/560, 8/315, -1/5, 8/5, -205/72, 8/5, -1/5, 8/315, -1/560]
+        est = 0
+        for j in range(-4, 5):
+            est += weights[j+4] * gd[idx+j, :]
+        est *= 1./dphi
+        print(est)
+        print(gdd[idx])
+        print(np.abs(est - gdd[idx]))
+        assert np.all(np.abs(est - gdd[idx]) < 1e-10)
+
     def test_multifilament_coefficient_derivative(self):
         for order in [None, 1]:
             for centroid in [True, False]:
