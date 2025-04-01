@@ -50,10 +50,6 @@ class FrameRotationTesting(unittest.TestCase):
         est_t *= 1./dphi
         est_n *= 1./dphi
         est_b *= 1./dphi
-        print(est_t, est_n, est_b)
-        # print(np.abs(est_t - td[idx]))
-        # print(np.abs(est_n - nd[idx]))
-        # print(np.abs(est_b - bd[idx]))
         assert np.all(np.abs(est_t - td[idx]) < 1e-8)
         assert np.all(np.abs(est_n - nd[idx]) < 1e-8)
         assert np.all(np.abs(est_b - bd[idx]) < 1e-8)
@@ -96,9 +92,6 @@ class FrameRotationTesting(unittest.TestCase):
         est_t *= 1./dphi
         est_n *= 1./dphi
         est_b *= 1./dphi
-        print(np.abs(est_t - tdd[idx]))
-        print(np.abs(est_n - ndd[idx]))
-        print(np.abs(est_b - bdd[idx]))
         assert np.all(np.abs(est_t - tdd[idx]) < 1e-6)
         assert np.all(np.abs(est_n - ndd[idx]) < 1e-6)
         assert np.all(np.abs(est_b - bdd[idx]) < 1e-6)
