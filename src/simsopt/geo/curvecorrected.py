@@ -65,9 +65,9 @@ class CurveCorrected(sopp.Curve, Curve):
         self.curve = curve
         sopp.Curve.__init__(self, curve.quadpoints)
         if dofs is None:
-            Curve.__init__(self, x0=np.zeros((6, )), depends_on=[curve])
+            Curve.__init__(self, x0=np.zeros((6, )), depends_on=[curve], names=['dx','dy','dz','yaw','pitch','roll'])
         else:
-            Curve.__init__(self, dofs=dofs, depends_on=[curve])
+            Curve.__init__(self, dofs=dofs, depends_on=[curve], names=['dx','dy','dz','yaw','pitch','roll'])
 
     def recompute_bell(self, parent=None):
         self.invalidate_cache()

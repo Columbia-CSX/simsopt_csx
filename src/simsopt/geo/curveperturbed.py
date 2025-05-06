@@ -11,10 +11,10 @@ import warnings
 
 from .._core.json import GSONable
 from .._core.util import RealArray
+from .._core.json import GSONDecoder
 
 import simsoptpp as sopp
 from simsopt.geo.curve import Curve
-import numpy as np
 from randomgen import PCG64
 
 __all__ = [
@@ -91,6 +91,21 @@ class GaussianSampler(GSONable):
         # Multiply by Cholesky-like factor
         full = self.L @ z
         return [full[(i * n) : ((i + 1) * n), :] for i in range(n_derivs + 1)]
+    
+    # def as_dict(self, serial_objs_dict):
+    #     d = super().as_dict(serial_objs_dict=serial_objs_dict)
+
+    # @classmethod
+    # def from_dict(cls, d, serial_objs_dict, recon_objs):
+    #     decoder = GSONDecoder()
+    #     return cls(
+    #         points=np.array(d["points"]),
+    #         sigma=d["sigma"],
+    #         length_scale=d["length_scale"],
+    #         n_derivs=d.get("n_derivs", 1)
+    #     )
+    
+
 
 
 ###############################################################################
@@ -122,6 +137,28 @@ class PerturbationSample(GSONable):
                 f"Requested derivative {deriv} is out of range."
             )
         return self._sample[deriv]
+    
+    def as_dict(self, serial_objs_dict):
+        d = super().as_dict(serial_objs_dict=serial_objs_dict)
+        d.pop("randomgen")
+        d["randomgen_state"] =  self.randomgen.bit_generator.state  if self.randomgen else None
+        d["sample"] = [s.tolist() for s in self._sample]
+        return d
+    
+    
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        if d["randomgen_state"]:
+            bit_gen = np.random.PCG64()
+            bit_gen.state = d["randomgen_state"]
+            randomgen = np.random.Generator(bit_gen)
+        else:
+            randomgen = None   
+
+        sampler = decoder.process_decoded(d["sampler"], serial_objs_dict, recon_objs)
+        return cls(sampler, randomgen, np.array(d["sample"]))
+
 
 
 ###############################################################################
