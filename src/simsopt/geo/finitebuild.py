@@ -14,7 +14,6 @@ __all__ = ['create_multifilament_grid', 'CurveFilament']
 
 
 class CurveFilament(FramedCurve):
-
     def __init__(self, framedcurve, dn, db):
         """
         Given a FramedCurve, defining a normal and
