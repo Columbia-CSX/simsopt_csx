@@ -5,7 +5,7 @@ import scipy
 from .._core.optimizable import Optimizable
 from .._core.derivative import Derivative, derivative_dec
 
-__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'Weight', 'forward_backward']
+__all__ = ['MPIOptimizable', 'MPIObjective', 'QuadraticPenalty', 'QuadraticPenaltyDouble', 'Weight', 'forward_backward']
 
 
 def forward_backward(P, L, U, rhs, iterative_refinement=False):
@@ -187,6 +187,64 @@ class QuadraticPenalty(Optimizable):
             return np.minimum(diff, 0)*dval
         elif self.f == 'identity':
             return diff*dval
+        else:
+            raise Exception('incorrect wrapping function f provided')
+
+    return_fn_map = {'J': J, 'dJ': dJ}
+
+class QuadraticPenaltyDouble(Optimizable):
+
+    def __init__(self, obj1, obj2, cons1=0., cons2=0., f="identity"):
+        r"""
+        The same as QuadraticPenalty above but with two objectives, not one
+        """
+        Optimizable.__init__(self, x0=np.asarray([]), depends_on=[obj1, obj2])
+        self.obj1 = obj1
+        self.obj2 = obj2
+        self.cons1 = cons1
+        self.cons2 = cons2
+        self.f = f
+
+    def J(self):
+        val1 = self.obj1.J()
+        val2 = self.obj2.J()
+        diff1 = float(val1 - self.cons1)
+        diff2 = float(val2 - self.cons2)
+
+        if self.f == 'max':
+            return 0.5*( np.maximum(diff1, 0) * np.maximum(diff2, 0) )**2
+        elif self.f == 'min':
+            return 0.5*( np.minimum(diff1, 0) * np.minimum(diff2, 0) )**2
+        elif self.f == 'identity':
+            return 0.5*(diff1*diff2)**2
+        else:
+            raise Exception('incorrect wrapping function f provided')
+
+    @derivative_dec
+    def dJ(self):
+        val1 = self.obj1.J()
+        dval1 = self.obj1.dJ(partials=True)
+        
+        val2 = self.obj1.J()
+        dval2 = self.obj1.dJ(partials=True)
+        
+        diff1 = float(val1 - self.cons1)
+        diff2 = float(val2 - self.cons2)
+
+        if self.f == 'max':
+            return (
+                np.maximum(diff1, 0)*np.maximum(diff2, 0)*(
+                    dval1*np.maximum(diff2, 0) + dval2*np.maximum(diff2, 0)
+                )
+            )
+        elif self.f == 'min':
+            return (
+                np.minimum(diff1, 0)*np.minimum(diff2, 0)*(
+                    dval1*np.minimum(diff2, 0) + dval2*np.minimum(diff2, 0)
+                )
+            )        
+        elif self.f == 'identity':
+            return diff1*diff2*(dval1*diff2 + dval2*diff1)
         else:
             raise Exception('incorrect wrapping function f provided')
 
