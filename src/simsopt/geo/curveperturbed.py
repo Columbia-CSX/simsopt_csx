@@ -9,7 +9,7 @@ from sympy import Symbol, lambdify, exp
 from math import comb
 import warnings
 
-from .._core.json import GSONable
+from .._core.json import GSONable, GSONDecoder
 from .._core.util import RealArray
 
 import simsoptpp as sopp
@@ -92,6 +92,22 @@ class GaussianSampler(GSONable):
         full = self.L @ z
         return [full[(i * n) : ((i + 1) * n), :] for i in range(n_derivs + 1)]
 
+    def as_dict(self, serial_objs_dict=None):
+        return {
+            "points": self.points.tolist(),
+            "sigma": self.sigma,
+            "length_scale": self.length_scale,
+            "n_derivs": self.n_derivs,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            points=np.array(d["points"]),
+            sigma=d["sigma"],
+            length_scale=d["length_scale"],
+            n_derivs=d.get("n_derivs", 1),
+        )
 
 ###############################################################################
 #                            PerturbationSample
@@ -103,9 +119,28 @@ class PerturbationSample(GSONable):
     """
 
     def __init__(self, sampler, randomgen=None, sample=None):
+        #randomgen = randomgen_state
         self.sampler = sampler
         self.randomgen = randomgen
         self._sample = sample if sample is not None else self.sampler.draw_sample(self.randomgen)
+
+
+    def as_dict(self, serial_objs_dict=None):
+        return {
+            "sampler": self.sampler.as_dict(),
+            "sample": [arr.tolist() for arr in self._sample],
+            "randomgen_state": self.randomgen.__getstate__()
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        sampler = GaussianSampler.from_dict(d["sampler"])
+        sample = [np.array(arr) for arr in d["sample"]]
+        randomgen_state = d["randomgen_state"]
+        randomgen = np.random.Generator(np.random.PCG64())  # create dummy
+        randomgen.__setstate__(randomgen_state)
+        return cls(sampler=sampler, randomgen=randomgen, sample=sample)
+    
 
     def resample(self):
         """Re-draw the random sample from the underlying distribution."""
@@ -122,6 +157,8 @@ class PerturbationSample(GSONable):
                 f"Requested derivative {deriv} is out of range."
             )
         return self._sample[deriv]
+
+    
 
 
 ###############################################################################
@@ -172,6 +209,22 @@ class CurvePerturbed(sopp.Curve, Curve):
         Curve.__init__(self, x0=np.asarray([]), depends_on=[curve])
         self.sample = sample
         self.zero_mean = zero_mean
+
+    def as_dict(self, serial_objs_dict=None) -> dict:
+        d = super().as_dict(serial_objs_dict)
+        return d | {
+            "sample": self.sample.as_dict(),
+            "zero_mean": self.zero_mean,
+        }
+
+    @classmethod
+    def from_dict(cls, d, serial_objs_dict, recon_objs):
+        decoder = GSONDecoder()
+        curve = decoder.process_decoded(d["curve"],
+                                      serial_objs_dict=serial_objs_dict,
+                                      recon_objs=recon_objs)
+        sample = PerturbationSample.from_dict(d["sample"])
+        return cls(curve=curve, sample=sample, zero_mean=d["zero_mean"])
 
     def resample(self):
         """Resample the perturbation and invalidate the cached geometry."""
