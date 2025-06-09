@@ -1,6 +1,9 @@
 import numpy as np
+import jax.numpy as jnp
+from jax import vjp
 
-from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet
+from .jit import jit
+from .framedcurve import FramedCurve, FrameRotation, ZeroRotation, FramedCurveCentroid, FramedCurveFrenet, inner
 
 """
 The functions and classes in this model are used to deal with multifilament
@@ -11,7 +14,6 @@ __all__ = ['create_multifilament_grid', 'CurveFilament']
 
 
 class CurveFilament(FramedCurve):
-
     def __init__(self, framedcurve, dn, db):
         """
         Given a FramedCurve, defining a normal and
@@ -37,8 +39,113 @@ class CurveFilament(FramedCurve):
         self.framedcurve = framedcurve 
         FramedCurve.__init__(self, self.curve, self.rotation)
 
+        # self.torsion = jit(
+        #     lambda b, ndash, gammadash: torsion_pure(
+        #         b, ndash, gammadash
+        #     )
+        # )
+        # self.torsiongrad_vjp0 = jit(lambda b, ndash, gammadash, v: vjp(
+        #         lambda g: self.torsion(g, ndash, gammadash), b
+        #     )[1](v)[0]
+        # )
+        # self.torsiongrad_vjp1 = jit(lambda b, ndash, gammadash, v: vjp(
+        #         lambda g: self.torsion(b, g, gammadash), ndash
+        #     )[1](v)[0]
+        # )
+        # self.torsiongrad_vjp2 = jit(lambda b, ndash, gammadash, v: vjp(
+        #         lambda g: self.torsion(b, ndash, g), gammadash
+        #     )[1](v)[0]
+        # )
+        # self.binorm = jit(
+        #     lambda b, tdash, gammadash: binormal_curvature_pure(
+        #         b, tdash, gammadash
+        #     )
+        # )
+        # self.binormgrad_vjp0 = jit(lambda b, tdash, gammadash, v: vjp(
+        #         lambda g: self.binorm(g, tdash, gammadash), b
+        #     )[1](v)[0]
+        # )
+        # self.binormgrad_vjp1 = jit(lambda b, tdash, gammadash, v: vjp(
+        #         lambda g: self.binorm(b, g, gammadash), tdash
+        #     )[1](v)[0]
+        # )
+        # self.binormgrad_vjp2 = jit(lambda b, tdash, gammadash, v: vjp(
+        #         lambda g: self.binorm(b, tdash, g), gammadash
+        #     )[1](v)[0]
+        # )
+
+    # def frame_torsion(self):
+    #     """
+    #     Returns the frame torsion along the CurveFilament
+    #     """
+    #     _, _, b = self.framedcurve.rotated_frame()
+    #     _, ndash, _ = self.framedcurve.rotated_frame_dash()
+    #     return self.torsion(b, ndash, self.gammadash())
+
+    # def dframe_torsion_by_dcoeff_vjp(self, v):
+    #     """
+    #     VJP function for derivatives of the frame torsion with respect to the
+    #     curve and rotation dofs.
+    #     """
+    #     _, _, b = self.framedcurve.rotated_frame()
+    #     _, ndash, _ = self.framedcurve.rotated_frame_dash()
+    #     gammadash = self.gammadash()
+
+    #     grad0 = self.torsiongrad_vjp0(b, ndash, gammadash, v)
+    #     grad1 = self.torsiongrad_vjp1(b, ndash, gammadash, v)
+    #     grad2 = self.torsiongrad_vjp2(b, ndash, gammadash, v)
+
+    #     return self.db_by_dcoeff_vjp(grad0) \
+    #         + self.dndash_by_dcoeff_vjp(grad1) \
+    #         + self.dgammadash_by_dcoeff_vjp(grad2)
+
+    # def db_by_dcoeff_vjp(self, v):
+    #     return self.framedcurve.rotated_frame_dcoeff_vjp(
+    #         np.zeros_like(v), np.zeros_like(v), v
+    #     )
+
+    # def dndash_by_dcoeff_vjp(self, v):
+    #     return self.framedcurve.rotated_frame_dash_dcoeff_vjp(
+    #         np.zeros_like(v), v, np.zeros_like(v)
+    #     )
+
+    # def frame_binormal_curvature(self):
+    #     """
+    #     Returns the frame binormal curvature along the CurveFilament
+    #     """
+    #     _, _, b = self.framedcurve.rotated_frame()
+    #     tdash, _, _ = self.framedcurve.rotated_frame_dash()
+    #     # tdash = self.gammadashdash()
+    #     return self.binorm(b, tdash, self.gammadash())
+
+    # def dframe_binormal_curvature_by_dcoeff_vjp(self, v):
+    #     """
+    #     VJP function for derivatives of the frame binormal curvature with 
+    #     respect to the curve and rotation dofs.
+    #     """
+    #     _, _, b = self.framedcurve.rotated_frame()
+    #     tdash, _, _ = self.framedcurve.rotated_frame_dash()
+    #     gammadash = self.gammadash()  
+
+    #     grad0 = self.binormgrad_vjp0(b, tdash, gammadash, v)
+    #     grad1 = self.binormgrad_vjp1(b, tdash, gammadash, v)
+    #     grad2 = self.binormgrad_vjp2(b, tdash, gammadash, v)
+
+    #     return self.db_by_dcoeff_vjp(grad0) \
+    #         + self.dtdash_by_dcoeff_vjp(grad1) \
+    #         + self.dgammadash_by_dcoeff_vjp(grad2)
+
+    # def dtdash_by_dcoeff_vjp(self, v):
+    #     return self.framedcurve.rotated_frame_dash_dcoeff_vjp(
+    #         v, np.zeros_like(v), np.zeros_like(v)
+    #     )
+
     def recompute_bell(self, parent=None):
         self.invalidate_cache()
+
+    def gamma(self):
+        t, n, b = self.framedcurve.rotated_frame()
+        return self.curve.gamma() + self.dn * n + self.db * b
 
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
@@ -46,9 +153,24 @@ class CurveFilament(FramedCurve):
         t, n, b = self.framedcurve.rotated_frame()
         gamma[:] = self.curve.gamma() + self.dn * n + self.db * b
 
+    def gammadash(self):
+        td, nd, bd = self.framedcurve.rotated_frame_dash()
+        return self.curve.gammadash() + self.dn * nd + self.db * bd
+
     def gammadash_impl(self, gammadash):
         td, nd, bd = self.framedcurve.rotated_frame_dash()
         gammadash[:] = self.curve.gammadash() + self.dn * nd + self.db * bd
+
+    def gammadashdash(self):
+        tdd, ndd, bdd = self.framedcurve.rotated_frame_dashdash()
+        return self.curve.gammadashdash() + self.dn * ndd + self.db * bdd
+
+    def gammadashdash_impl(self, gammadashdash):
+        """
+        Implementation of gammadashdash once I know the mathematical formula
+        """
+        tdd, ndd, bdd = self.framedcurve.rotated_frame_dashdash()
+        gammadashdash[:] = self.curve.gammadashdash() + self.dn * ndd + self.db * bdd
 
     def dgamma_by_dcoeff_vjp(self, v):
         return self.curve.dgamma_by_dcoeff_vjp(v) \
@@ -57,6 +179,38 @@ class CurveFilament(FramedCurve):
     def dgammadash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadash_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
+
+    def dgammadashdash_by_dcoeff_vjp(self, v):
+        """
+        Implementation of gammadashdash_by_dcoeff_vjp once I have the jvp functions
+        defined for rotated frame dash (or is it another object)
+        """
+        return self.curve.dgammadashdash_by_dcoeff_vjp(v) \
+           +  self.framedcurve.rotated_frame_dashdash_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)
+
+# def torsion_pure_centroid(gamma_c, gamma_f, gammadash_c, gammadash_f,
+#                           gammadashdash_f, alpha_c, alphadash_c):
+#     _, _, b = rotated_centroid_frame(gamma, gammadash, alpha)
+#     _, ndash, _ = rotated_centroid_frame_dash(
+#         gamma, gammadash, gammadashdash, alpha, alphadash)
+
+#     ndash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+#     return inner(ndash, b)
+
+# def torsion_pure(b, ndash, gammadash):
+#     """
+#     b and ndash come from centerline curve, gammadash comes from offset curve.
+#     """
+#     ndash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+#     return inner(ndash, b)
+
+# def binormal_curvature_pure(b, tdash, gammadash):
+#     """
+#     b and tdash come from centerline curve, gammadash comes from offset curve.
+#     """
+#     tdash *= 1/jnp.linalg.norm(gammadash, axis=1)[:, None]
+#     return inner(tdash, b)
+
 
 def create_multifilament_grid(curve, numfilaments_n, numfilaments_b, gapsize_n, gapsize_b, 
                               rotation_order=None, rotation_scaling=None, frame='centroid'):

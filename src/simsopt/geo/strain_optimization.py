@@ -45,21 +45,30 @@ class LPBinormalCurvatureStrainPenalty(Optimizable):
         """
         This returns the value of the quantity.
         """
-        return self.J_jax(self.strain.binormal_curvature_strain(), self.framedcurve.curve.gammadash())
+        # I think these should be CurveFilament.gammadash()
+        # return self.J_jax(self.strain.binormal_curvature_strain(), self.framedcurve.curve.gammadash())
+        return self.J_jax(self.strain.binormal_curvature_strain(), self.framedcurve.gammadash())
 
     @derivative_dec
     def dJ(self):
+        # I think these should be CurveFilament.gammadash()
         """
         This returns the derivative of the quantity with respect to the curve and rotation dofs.
         """
+        # grad0 = self.grad0(self.strain.binormal_curvature_strain(),
+        #                    self.framedcurve.curve.gammadash())
+        # grad1 = self.grad1(self.strain.binormal_curvature_strain(),
+        #                    self.framedcurve.curve.gammadash())
         grad0 = self.grad0(self.strain.binormal_curvature_strain(),
-                           self.framedcurve.curve.gammadash())
+                           self.framedcurve.gammadash())
         grad1 = self.grad1(self.strain.binormal_curvature_strain(),
-                           self.framedcurve.curve.gammadash())
+                           self.framedcurve.gammadash())
         vjp0 = self.strain.binormstrain_vjp(
             self.framedcurve.frame_binormal_curvature(), self.width, grad0)
+        # return self.framedcurve.dframe_binormal_curvature_by_dcoeff_vjp(vjp0) \
+        #     + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
         return self.framedcurve.dframe_binormal_curvature_by_dcoeff_vjp(vjp0) \
-            + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
+            + self.framedcurve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -98,22 +107,30 @@ class LPTorsionalStrainPenalty(Optimizable):
     def J(self):
         """
         This returns the value of the quantity.
-        """
-        return self.J_jax(self.strain.torsional_strain(), self.framedcurve.curve.gammadash())
+        """        
+        # return self.J_jax(self.strain.torsional_strain(), self.framedcurve.curve.gammadash())
+        return self.J_jax(self.strain.torsional_strain(), self.framedcurve.gammadash())
 
     @derivative_dec
     def dJ(self):
         """
         This returns the derivative of the quantity with respect to the curve and rotation dofs.
         """
+        # I think these should be CurveFilament.gammadash()
+        # grad0 = self.grad0(self.strain.torsional_strain(),
+        #                    self.framedcurve.curve.gammadash())
+        # grad1 = self.grad1(self.strain.torsional_strain(),
+        #                    self.framedcurve.curve.gammadash())
         grad0 = self.grad0(self.strain.torsional_strain(),
-                           self.framedcurve.curve.gammadash())
+                           self.framedcurve.gammadash())
         grad1 = self.grad1(self.strain.torsional_strain(),
-                           self.framedcurve.curve.gammadash())
+                           self.framedcurve.gammadash())
         vjp0 = self.strain.torstrain_vjp(
             self.framedcurve.frame_torsion(), self.width, grad0)
+        # return self.framedcurve.dframe_torsion_by_dcoeff_vjp(vjp0) \
+        #     + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
         return self.framedcurve.dframe_torsion_by_dcoeff_vjp(vjp0) \
-            + self.framedcurve.curve.dgammadash_by_dcoeff_vjp(grad1)
+            + self.framedcurve.dgammadash_by_dcoeff_vjp(grad1)
 
     return_fn_map = {'J': J, 'dJ': dJ}
 
@@ -161,7 +178,7 @@ class CoilStrain(Optimizable):
         self.binormstrain_jax = jit(lambda binorm, width: binormstrain_pure(
             binorm, width))
         self.torstrain_vjp = jit(lambda torsion, width, v: vjp(
-            lambda g: torstrain_pure(g, width), torsion)[1](v)[0])
+            lambda g: torstrain_pure(g, width), torsion)[1](v)[0]) # only takes vjp with respect to torsion
         self.binormstrain_vjp = jit(lambda binorm, width, v: vjp(
             lambda g: binormstrain_pure(g, width), binorm)[1](v)[0])
         
