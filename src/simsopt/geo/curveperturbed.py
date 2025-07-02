@@ -138,23 +138,6 @@ class PerturbationSample(GSONable):
         self.sampler = sampler
         self.randomgen = randomgen
         self._sample = sample if sample is not None else self.sampler.draw_sample(self.randomgen)
-
-
-    def as_dict(self, serial_objs_dict=None):
-        return {
-            "sampler": self.sampler.as_dict(),
-            "sample": [arr.tolist() for arr in self._sample],
-            "randomgen_state": self.randomgen.__getstate__()
-        }
-
-    @classmethod
-    def from_dict(cls, d):
-        sampler = GaussianSampler.from_dict(d["sampler"])
-        sample = [np.array(arr) for arr in d["sample"]]
-        randomgen_state = d["randomgen_state"]
-        randomgen = np.random.Generator(np.random.PCG64())  # create dummy
-        randomgen.__setstate__(randomgen_state)
-        return cls(sampler=sampler, randomgen=randomgen, sample=sample)
     
 
     def resample(self):
@@ -250,7 +233,7 @@ class CurvePerturbed(sopp.Curve, Curve):
     def as_dict(self, serial_objs_dict=None) -> dict:
         d = super().as_dict(serial_objs_dict)
         return d | {
-            "sample": self.sample.as_dict(),
+            "sample": self.sample.as_dict(serial_objs_dict),
             "zero_mean": self.zero_mean,
         }
 
@@ -260,7 +243,7 @@ class CurvePerturbed(sopp.Curve, Curve):
         curve = decoder.process_decoded(d["curve"],
                                       serial_objs_dict=serial_objs_dict,
                                       recon_objs=recon_objs)
-        sample = PerturbationSample.from_dict(d["sample"])
+        sample = PerturbationSample.from_dict(d["sample"], serial_objs_dict, recon_objs)
         return cls(curve=curve, sample=sample, zero_mean=d["zero_mean"])
 
     def resample(self):
