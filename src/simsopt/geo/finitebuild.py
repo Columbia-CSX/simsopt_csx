@@ -172,6 +172,18 @@ class CurveFilament(FramedCurve):
         tdd, ndd, bdd = self.framedcurve.rotated_frame_dashdash()
         gammadashdash[:] = self.curve.gammadashdash() + self.dn * ndd + self.db * bdd
 
+
+    def gammadashdashdash(self):
+        tddd, nddd, bddd = self.framedcurve.rotated_frame_dashdashdash()
+        return self.curve.gammadashdashdash() + self.dn * nddd + self.db * bddd
+
+    def gammadashdashdash_impl(self, gammadashdashdash):
+        """
+        Implementation of gammadashdash once I know the mathematical formula
+        """
+        tddd, nddd, bddd = self.framedcurve.rotated_frame_dashdashdash()
+        gammadashdashdash[:] = self.curve.gammadashdashdash() + self.dn * nddd + self.db * bddd
+
     def dgamma_by_dcoeff_vjp(self, v):
         return self.curve.dgamma_by_dcoeff_vjp(v) \
            +  self.framedcurve.rotated_frame_dcoeff_vjp(np.zeros_like(v), self.dn*v, self.db*v)

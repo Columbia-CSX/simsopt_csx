@@ -1081,7 +1081,7 @@ class DifferentialVolume(Optimizable):
         G = self.boozer_surface.res['G']
         jac =  np.abs(G) /(modB**2)
 
-        self._J = (2*np.pi) * np.mean(jac) 
+        self._J = (2*np.pi) * np.mean(jac) #\\ TODO: check if this is correct, it should be 2pi**2 right?
 
         # compute dJ
         booz_surf = self.boozer_surface

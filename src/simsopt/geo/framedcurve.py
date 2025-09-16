@@ -23,7 +23,6 @@ class FramedCurve(sopp.Curve, Curve):
         with respect to this reference frame. 
         """
         # import simsopt.geo.finitebuild
-        from .finitebuild import CurveFilament
         self.curve = curve 
         sopp.Curve.__init__(self, curve.quadpoints)
         deps = [curve]
@@ -492,6 +491,17 @@ class FramedCurveCentroid(FramedCurve):
             self.curve.gamma(), self.curve.gammadash(), self.curve.gammadashdash(), self.curve.gammadashdashdash(),
             self.rotation.alpha(pts), self.rotation.alphadash(pts), self.rotation.alphadashdash(pts)
         )
+    
+    def rotated_frame_dashdashdash(self):
+        """
+        Returns the third derivatives of the frame with respect to the parameterization of the curve,
+        :math:`(\hat{\textbf{t}}'''(\phi), \hat{\textbf{n}}'''(\phi), \hat{\textbf{b}})'''(\phi)`.
+        """
+        pts = self.curve.quadpoints
+        return rotated_centroid_frame_dashdashdash(
+            self.curve.gamma(), self.curve.gammadash(), self.curve.gammadashdash(), self.curve.gammadashdashdash(), self.curve.gammadashdashdashdash(),
+            self.rotation.alpha(pts), self.rotation.alphadash(pts), self.rotation.alphadashdash(pts), self.rotation.alphadashdashdash(pts)
+        )
 
     def dframe_binormal_curvature_by_dcoeff_vjp(self, v):
         """
@@ -629,6 +639,7 @@ class FrameRotation(Optimizable):
         self.jax_alpha = jit(lambda dofs, points: jaxrotation_pure(dofs, points, self.order))
         self.jax_alphadash = jit(lambda dofs, points: jaxrotationdash_pure(dofs, points, self.order))
         self.jax_alphadashdash = jit(lambda dofs, points: jaxrotationdashdash_pure(dofs, points, self.order))
+        self.jax_alphadashdashdash = jit(lambda dofs, points: jaxrotationdashdashdash_pure(dofs, points, self.order))
 
         if dofs is None:
             super().__init__(x0=np.zeros((2*order+1,)),
@@ -651,6 +662,9 @@ class FrameRotation(Optimizable):
 
     def alphadashdash(self, quadpoints):
         return self.scale * self.jax_alphadashdash(self._dofs.full_x, quadpoints)
+    
+    def alphadashdashdash(self, quadpoints):
+        return self.scale * self.jax_alphadashdashdash(self._dofs.full_x, quadpoints)
 
     def dalpha_by_dcoeff_vjp(self, quadpoints, v):
         return Derivative({self: self.scale * sopp.vjp(v, self.jac)})
@@ -803,6 +817,15 @@ rotated_centroid_frame_dashdash_dcoeff_vjp6 = jit(
     )[1](v)[0]
 )
 
+rotated_centroid_frame_dashdashdash = jit(
+    lambda gamma, gammadash, gammadashdash, gammadashdashdash, gammadashdashdashdash, alpha, alphadash, alphadashdash, alphadashdashdash: jvp(rotated_centroid_frame_dashdash,
+                                                                  (gamma, gammadash, gammadashdash,
+                                                                  gammadashdashdash,
+                                                                  alpha, alphadash, alphadashdash), # primals
+                                                                  (gammadash, gammadashdash,gammadashdashdash,
+                                                                  gammadashdashdashdash, alphadash, alphadashdash,
+                                                                  alphadashdashdash))[1]) # tangents
+
 @jit
 def rotated_frenet_frame(gamma, gammadash, gammadashdash, alpha):
     """Frenet frame of a curve rotated by a angle that varies along the coil path"""
@@ -892,6 +915,13 @@ def jaxrotationdashdash_pure(dofs, points, order):
     for j in range(1, order+1):
         rotation -= dofs[2*j-1] * (2*np.pi*j)**2*jnp.sin(2*np.pi*j*points)
         rotation -= dofs[2*j] * (2*np.pi*j)**2*jnp.cos(2*np.pi*j*points)
+    return rotation
+
+def jaxrotationdashdashdash_pure(dofs, points, order):
+    rotation = jnp.zeros((len(points), ))
+    for j in range(1, order+1):
+        rotation -= dofs[2*j-1] * (2*np.pi*j)**3*jnp.cos(2*np.pi*j*points)
+        rotation += dofs[2*j] * (2*np.pi*j)**3*jnp.sin(2*np.pi*j*points)
     return rotation
 
 
